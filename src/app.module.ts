@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { typeOrmConfig } from './database/typeorm.config';
 import { UseEnvironmentVariables } from './config/env/env.enable';
 import { UsersModule } from './modules/users/users.module';
+import { RolesModule } from './modules/roles/roles.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { UsersModule } from './modules/users/users.module';
       inject    : [ConfigService],
     }),
     UsersModule,
+    RolesModule,
   ],
 })
 export class AppModule {}
