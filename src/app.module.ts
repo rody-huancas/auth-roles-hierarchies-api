@@ -5,6 +5,8 @@ import { typeOrmConfig } from './database/typeorm.config';
 import { UseEnvironmentVariables } from './config/env/env.enable';
 import { UsersModule } from './modules/users/users.module';
 import { RolesModule } from './modules/roles/roles.module';
+import { OptionsModule } from './modules/options/options.module';
+import { ModuleRegistryModule } from './modules/module-registry/module-registry.module';
 
 @Module({
   imports: [
@@ -15,6 +17,8 @@ import { RolesModule } from './modules/roles/roles.module';
     }),
     UsersModule,
     RolesModule,
+    OptionsModule,
+    ModuleRegistryModule,
   ],
 })
 export class AppModule {}
