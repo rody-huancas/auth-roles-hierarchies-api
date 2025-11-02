@@ -7,6 +7,7 @@ import { UsersModule } from './modules/users/users.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { OptionsModule } from './modules/options/options.module';
 import { ModuleRegistryModule } from './modules/module-registry/module-registry.module';
+import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ModuleRegistryModule } from './modules/module-registry/module-registry.
     RolesModule,
     OptionsModule,
     ModuleRegistryModule,
+    AuditLogsModule,
   ],
 })
 export class AppModule {}
