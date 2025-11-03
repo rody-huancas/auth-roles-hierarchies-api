@@ -1,4 +1,5 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { RolePermissions } from '../../roles/entities/role-permissions.entity';
 
 @Entity({ name: 'module_registry' })
 export class ModuleRegistry {
@@ -20,6 +21,9 @@ export class ModuleRegistry {
 
   @OneToMany(() => ModuleRegistry, (module) => module.parent)
   children: ModuleRegistry[];
+
+  @OneToMany(() => RolePermissions, (rolePermission) => rolePermission.module)
+  rolePermissions: RolePermissions[];
 
   @Column({ type: 'int', name: 'order_index', default: 0 })
   orderIndex: number;

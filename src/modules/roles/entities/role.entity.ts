@@ -1,5 +1,6 @@
 import { Column, CreateDateColumn, Entity, Index, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { UserRoles } from '../../users/entities/user-roles.entity';
+import { RolePermissions } from './role-permissions.entity';
 
 @Entity({ name: 'roles' })
 @Index(['name'], { unique: true })
@@ -15,6 +16,9 @@ export class Role {
 
   @OneToMany(() => UserRoles, (userRole) => userRole.role)
   userRoles: UserRoles[];
+
+  @OneToMany(() => RolePermissions, (rolePermission) => rolePermission.role)
+  rolePermissions: RolePermissions[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
