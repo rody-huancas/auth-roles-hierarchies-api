@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength, MaxLength, Matches } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, MinLength, MaxLength, Matches, IsOptional, IsArray, IsUUID } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateUserDto {
@@ -42,4 +42,15 @@ export class CreateUserDto {
 
   @ApiProperty({ example: true, description: 'Estado activo del usuario', required: false, default: true })
   isActive?: boolean;
+
+  @ApiProperty({ 
+    example: ['123e4567-e89b-12d3-a456-426614174000', '223e4567-e89b-12d3-a456-426614174001'], 
+    description: 'Array de IDs de roles a asignar al usuario',
+    required: false,
+    type: [String]
+  })
+  @IsOptional()
+  @IsArray({ message: 'Los roles deben ser un array' })
+  @IsUUID(undefined, { each: true, message: 'Cada ID de rol debe ser un UUID válido' })
+  roleIds?: string[];
 }
