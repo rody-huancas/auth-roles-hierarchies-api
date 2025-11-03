@@ -1,5 +1,6 @@
 import { ModuleRegistry } from 'src/modules/module-registry/entities/module-registry.entity';
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { RolePermissions } from '../../roles/entities/role-permissions.entity';
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity({ name: 'options' })
 export class Option {
@@ -27,4 +28,7 @@ export class Option {
   @ManyToOne(() => ModuleRegistry, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'module_id' })
   module: ModuleRegistry;
+
+  @OneToMany(() => RolePermissions, (rolePermission) => rolePermission.option)
+  rolePermissions: RolePermissions[];
 }
