@@ -4,15 +4,17 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException, 
 import { ModuleRegistry } from './entities/module-registry.entity';
 import { CreateModuleRegistryDto } from './dto/create-module-registry.dto';
 import { UpdateModuleRegistryDto } from './dto/update-module-registry.dto';
+import { AuditService } from '../../common/services/audit.service';
 
 @Injectable()
 export class ModuleRegistryService {
   constructor(
     @InjectRepository(ModuleRegistry) private readonly moduleRegistryRepository: Repository<ModuleRegistry>,
     private readonly dataSource: DataSource,
+    private readonly auditService: AuditService,
   ) {}
 
-  async create(createModuleRegistryDto: CreateModuleRegistryDto): Promise<ModuleRegistry> {
+  async create(createModuleRegistryDto: CreateModuleRegistryDto, request?: any, userId?: string): Promise<ModuleRegistry> {
     const queryRunner = this.dataSource.createQueryRunner();
 
     await queryRunner.connect();
@@ -51,6 +53,22 @@ export class ModuleRegistryService {
       const savedModule = await queryRunner.manager.save(ModuleRegistry, newModule);
 
       await queryRunner.commitTransaction();
+
+      // Registrar en audit log
+      this.auditService.logCreate(
+        'ModuleRegistry',
+        savedModule.id,
+        {
+          key: savedModule.key,
+          name: savedModule.name,
+          parentModuleId: savedModule.parentModuleId,
+          orderIndex: savedModule.orderIndex,
+          isActive: savedModule.isActive,
+          route: savedModule.route,
+        },
+        request,
+        userId,
+      ).catch(() => {});
 
       return await this.findOne(savedModule.id);
     } catch (error) {
@@ -165,7 +183,7 @@ export class ModuleRegistryService {
     }
   }
 
-  async update(id: string, updateModuleRegistryDto: UpdateModuleRegistryDto): Promise<ModuleRegistry> {
+  async update(id: string, updateModuleRegistryDto: UpdateModuleRegistryDto, request?: any, userId?: string): Promise<ModuleRegistry> {
     const queryRunner = this.dataSource.createQueryRunner();
 
     await queryRunner.connect();
@@ -223,6 +241,26 @@ export class ModuleRegistryService {
 
       await queryRunner.commitTransaction();
 
+      // Registrar en audit log
+      const oldValues = {
+        key: existingModule.key,
+        name: existingModule.name,
+        parentModuleId: existingModule.parentModuleId,
+        orderIndex: existingModule.orderIndex,
+        isActive: existingModule.isActive,
+        route: existingModule.route,
+      };
+      const newValues = { ...oldValues, ...updateModuleRegistryDto };
+
+      this.auditService.logUpdate(
+        'ModuleRegistry',
+        id,
+        oldValues,
+        newValues,
+        request,
+        userId,
+      ).catch(() => {});
+
       return updatedModule!;
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -241,7 +279,7 @@ export class ModuleRegistryService {
     }
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, request?: any, userId?: string): Promise<void> {
     const queryRunner = this.dataSource.createQueryRunner();
 
     await queryRunner.connect();
@@ -264,6 +302,23 @@ export class ModuleRegistryService {
       await queryRunner.manager.remove(ModuleRegistry, module);
 
       await queryRunner.commitTransaction();
+
+      // Registrar en audit log
+      const oldValues = {
+        key: module.key,
+        name: module.name,
+        parentModuleId: module.parentModuleId,
+        orderIndex: module.orderIndex,
+        isActive: module.isActive,
+        route: module.route,
+      };
+      this.auditService.logDelete(
+        'ModuleRegistry',
+        id,
+        oldValues,
+        request,
+        userId,
+      ).catch(() => {});
     } catch (error) {
       await queryRunner.rollbackTransaction();
 
