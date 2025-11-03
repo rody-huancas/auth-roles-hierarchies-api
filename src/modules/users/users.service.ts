@@ -1,8 +1,10 @@
 import * as bcrypt from 'bcrypt';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
-import { Injectable, NotFoundException, ConflictException, InternalServerErrorException } from '@nestjs/common';
+import { DataSource, In, Repository } from 'typeorm';
+import { Injectable, NotFoundException, ConflictException, InternalServerErrorException, BadRequestException } from '@nestjs/common';
 import { User } from './entities/user.entity';
+import { Role } from '../roles/entities/role.entity';
+import { UserRoles } from './entities/user-roles.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
@@ -38,15 +40,46 @@ export class UsersService {
         throw new ConflictException('El username ya está en uso');
       }
 
+      let roles: Role[] = [];
+
+      // Validar que los roles existan si se proporcionaron
+      if (createUserDto.roleIds && createUserDto.roleIds.length > 0) {
+        roles = await queryRunner.manager.find(Role, {
+          where: { id: In(createUserDto.roleIds) },
+        });
+
+        if (roles.length !== createUserDto.roleIds.length) {
+          const foundIds = roles.map(r => r.id);
+          const missingIds = createUserDto.roleIds.filter(id => !foundIds.includes(id));
+          throw new BadRequestException(`Los siguientes roles no existen: ${missingIds.join(', ')}`);
+        }
+      }
+
       const hashedPassword = await bcrypt.hash(createUserDto.password, this.SALT_ROUNDS);
 
       const newUser = queryRunner.manager.create(User, {
-        ...createUserDto,
-        password: hashedPassword,
-        isActive: createUserDto.isActive ?? true,
+        username : createUserDto.username,
+        email    : createUserDto.email,
+        password : hashedPassword,
+        firstName: createUserDto.firstName,
+        lastName : createUserDto.lastName,
+        isActive : createUserDto.isActive ?? true,
       });
 
       const savedUser = await queryRunner.manager.save(User, newUser);
+
+      // Asignar roles si se proporcionaron
+      if (roles.length > 0) {
+        const userRoles = roles.map(role =>
+          queryRunner.manager.create(UserRoles, {
+            user      : savedUser,
+            role      : role,
+            assignedBy: null,
+          })
+        );
+
+        await queryRunner.manager.save(UserRoles, userRoles);
+      }
 
       const { password, ...userWithoutPassword } = savedUser;
 
@@ -56,7 +89,10 @@ export class UsersService {
     } catch (error) {
       await queryRunner.rollbackTransaction();
 
-      if (error instanceof ConflictException) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
 
@@ -113,6 +149,7 @@ export class UsersService {
           'createdAt',
           'updatedAt',
         ],
+        relations: ['userRoles', 'userRoles.role'],
       });
 
       if (!user) {

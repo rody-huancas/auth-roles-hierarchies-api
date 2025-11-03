@@ -1,4 +1,5 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { UserRoles } from '../../users/entities/user-roles.entity';
 
 @Entity({ name: 'roles' })
 @Index(['name'], { unique: true })
@@ -11,6 +12,9 @@ export class Role {
 
   @Column({ type: 'varchar', length: 255 })
   description: string;
+
+  @OneToMany(() => UserRoles, (userRole) => userRole.role)
+  userRoles: UserRoles[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
