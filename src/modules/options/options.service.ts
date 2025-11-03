@@ -5,6 +5,7 @@ import { Option } from './entities/option.entity';
 import { ModuleRegistry } from '../module-registry/entities/module-registry.entity';
 import { CreateOptionDto } from './dto/create-option.dto';
 import { UpdateOptionDto } from './dto/update-option.dto';
+import { AuditService } from '../../common/services/audit.service';
 
 @Injectable()
 export class OptionsService {
@@ -12,9 +13,10 @@ export class OptionsService {
     @InjectRepository(Option) private readonly optionRepository: Repository<Option>,
     @InjectRepository(ModuleRegistry) private readonly moduleRegistryRepository: Repository<ModuleRegistry>,
     private readonly dataSource: DataSource,
+    private readonly auditService: AuditService,
   ) {}
 
-  async create(createOptionDto: CreateOptionDto): Promise<Option> {
+  async create(createOptionDto: CreateOptionDto, request?: any, userId?: string): Promise<Option> {
     const queryRunner = this.dataSource.createQueryRunner();
 
     await queryRunner.connect();
@@ -47,6 +49,20 @@ export class OptionsService {
       const savedOption = await queryRunner.manager.save(Option, newOption);
 
       await queryRunner.commitTransaction();
+
+      // Registrar en audit log
+      this.auditService.logCreate(
+        'Option',
+        savedOption.id,
+        {
+          moduleId: savedOption.moduleId,
+          key: savedOption.key,
+          name: savedOption.name,
+          description: savedOption.description,
+        },
+        request,
+        userId,
+      ).catch(() => {});
 
       return await this.findOne(savedOption.id);
     } catch (error) {
@@ -133,7 +149,7 @@ export class OptionsService {
     }
   }
 
-  async update(id: string, updateOptionDto: UpdateOptionDto): Promise<Option> {
+  async update(id: string, updateOptionDto: UpdateOptionDto, request?: any, userId?: string): Promise<Option> {
     const queryRunner = this.dataSource.createQueryRunner();
 
     await queryRunner.connect();
@@ -175,6 +191,24 @@ export class OptionsService {
 
       await queryRunner.commitTransaction();
 
+      // Registrar en audit log
+      const oldValues = {
+        moduleId: existingOption.moduleId,
+        key: existingOption.key,
+        name: existingOption.name,
+        description: existingOption.description,
+      };
+      const newValues = { ...oldValues, ...updateOptionDto };
+
+      this.auditService.logUpdate(
+        'Option',
+        id,
+        oldValues,
+        newValues,
+        request,
+        userId,
+      ).catch(() => {});
+
       return updatedOption!;
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -189,7 +223,7 @@ export class OptionsService {
     }
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, request?: any, userId?: string): Promise<void> {
     const queryRunner = this.dataSource.createQueryRunner();
 
     await queryRunner.connect();
@@ -205,6 +239,21 @@ export class OptionsService {
       await queryRunner.manager.remove(Option, option);
 
       await queryRunner.commitTransaction();
+
+      // Registrar en audit log
+      const oldValues = {
+        moduleId: option.moduleId,
+        key: option.key,
+        name: option.name,
+        description: option.description,
+      };
+      this.auditService.logDelete(
+        'Option',
+        id,
+        oldValues,
+        request,
+        userId,
+      ).catch(() => {});
     } catch (error) {
       await queryRunner.rollbackTransaction();
 

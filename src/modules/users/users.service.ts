@@ -7,6 +7,7 @@ import { Role } from '../roles/entities/role.entity';
 import { UserRoles } from './entities/user-roles.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { AuditService } from '../../common/services/audit.service';
 
 @Injectable()
 export class UsersService {
@@ -15,9 +16,10 @@ export class UsersService {
   constructor(
     @InjectRepository(User) private readonly userRepository: Repository<User>,
     private readonly dataSource: DataSource,
+    private readonly auditService: AuditService,
   ) {}
 
-  async create(createUserDto: CreateUserDto): Promise<Omit<User, 'password'>> {
+  async create(createUserDto: CreateUserDto, request?: any, userId?: string): Promise<Omit<User, 'password'>> {
     const queryRunner = this.dataSource.createQueryRunner();
 
     await queryRunner.connect();
@@ -84,6 +86,22 @@ export class UsersService {
       const { password, ...userWithoutPassword } = savedUser;
 
       await queryRunner.commitTransaction();
+
+      // Registrar en audit log (sin await para no bloquear)
+      this.auditService.logCreate(
+        'User',
+        savedUser.id,
+        {
+          username: savedUser.username,
+          email: savedUser.email,
+          firstName: savedUser.firstName,
+          lastName: savedUser.lastName,
+          isActive: savedUser.isActive,
+          roleIds: createUserDto.roleIds || [],
+        },
+        request,
+        userId,
+      ).catch(() => {}); // Ignorar errores de audit log
 
       return userWithoutPassword;
     } catch (error) {
@@ -176,7 +194,7 @@ export class UsersService {
     }
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<Omit<User, 'password'>> {
+  async update(id: string, updateUserDto: UpdateUserDto, request?: any, userId?: string): Promise<Omit<User, 'password'>> {
     const queryRunner = this.dataSource.createQueryRunner();
 
     await queryRunner.connect();
@@ -234,6 +252,31 @@ export class UsersService {
 
       await queryRunner.commitTransaction();
 
+      // Registrar en audit log
+      const oldValues = {
+        username: existingUser.username,
+        email: existingUser.email,
+        firstName: existingUser.firstName,
+        lastName: existingUser.lastName,
+        isActive: existingUser.isActive,
+      };
+
+      const newValues = {
+        ...oldValues,
+        ...updateUserDto,
+        password: updateUserDto.password ? '[REDACTED]' : undefined,
+      };
+      delete newValues.password;
+
+      this.auditService.logUpdate(
+        'User',
+        id,
+        oldValues,
+        newValues,
+        request,
+        userId,
+      ).catch(() => {});
+
       return updatedUser!;
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -251,7 +294,7 @@ export class UsersService {
     }
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, request?: any, userId?: string): Promise<void> {
     const queryRunner = this.dataSource.createQueryRunner();
 
     await queryRunner.connect();
@@ -269,6 +312,23 @@ export class UsersService {
       await queryRunner.manager.update(User, { id }, { isActive: false });
 
       await queryRunner.commitTransaction();
+
+      // Registrar en audit log
+      const oldValues = {
+        username: user.username,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        isActive: user.isActive,
+      };
+
+      this.auditService.logDelete(
+        'User',
+        id,
+        oldValues,
+        request,
+        userId,
+      ).catch(() => {});
     } catch (error) {
       await queryRunner.rollbackTransaction();
 
@@ -282,7 +342,7 @@ export class UsersService {
     }
   }
 
-  async hardDelete(id: string): Promise<void> {
+  async hardDelete(id: string, request?: any, userId?: string): Promise<void> {
     const queryRunner = this.dataSource.createQueryRunner();
 
     await queryRunner.connect();
@@ -298,6 +358,23 @@ export class UsersService {
       await queryRunner.manager.remove(User, user);
 
       await queryRunner.commitTransaction();
+
+      // Registrar en audit log
+      const oldValues = {
+        username: user.username,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        isActive: user.isActive,
+      };
+
+      this.auditService.logDelete(
+        'User',
+        id,
+        oldValues,
+        request,
+        userId,
+      ).catch(() => {});
     } catch (error) {
       await queryRunner.rollbackTransaction();
 

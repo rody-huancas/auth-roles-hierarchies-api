@@ -4,15 +4,17 @@ import { Injectable, NotFoundException, ConflictException, InternalServerErrorEx
 import { Role } from './entities/role.entity';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { AuditService } from '../../common/services/audit.service';
 
 @Injectable()
 export class RolesService {
   constructor(
     @InjectRepository(Role) private readonly roleRepository: Repository<Role>,
     private readonly dataSource: DataSource,
+    private readonly auditService: AuditService,
   ) {}
 
-  async create(createRoleDto: CreateRoleDto): Promise<Role> {
+  async create(createRoleDto: CreateRoleDto, request?: any, userId?: string): Promise<Role> {
     const queryRunner = this.dataSource.createQueryRunner();
 
     await queryRunner.connect();
@@ -31,6 +33,15 @@ export class RolesService {
       const savedRole = await queryRunner.manager.save(Role, newRole);
 
       await queryRunner.commitTransaction();
+
+      // Registrar en audit log
+      this.auditService.logCreate(
+        'Role',
+        savedRole.id,
+        { name: savedRole.name, description: savedRole.description },
+        request,
+        userId,
+      ).catch(() => {});
 
       return savedRole;
     } catch (error) {
@@ -88,7 +99,7 @@ export class RolesService {
     }
   }
 
-  async update(id: string, updateRoleDto: UpdateRoleDto): Promise<Role> {
+  async update(id: string, updateRoleDto: UpdateRoleDto, request?: any, userId?: string): Promise<Role> {
     const queryRunner = this.dataSource.createQueryRunner();
 
     await queryRunner.connect();
@@ -117,6 +128,19 @@ export class RolesService {
 
       await queryRunner.commitTransaction();
 
+      // Registrar en audit log
+      const oldValues = { name: existingRole.name, description: existingRole.description };
+      const newValues = { ...oldValues, ...updateRoleDto };
+
+      this.auditService.logUpdate(
+        'Role',
+        id,
+        oldValues,
+        newValues,
+        request,
+        userId,
+      ).catch(() => {});
+
       return updatedRole!;
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -131,7 +155,7 @@ export class RolesService {
     }
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, request?: any, userId?: string): Promise<void> {
     const queryRunner = this.dataSource.createQueryRunner();
 
     await queryRunner.connect();
@@ -147,6 +171,16 @@ export class RolesService {
       await queryRunner.manager.remove(Role, role);
 
       await queryRunner.commitTransaction();
+
+      // Registrar en audit log
+      const oldValues = { name: role.name, description: role.description };
+      this.auditService.logDelete(
+        'Role',
+        id,
+        oldValues,
+        request,
+        userId,
+      ).catch(() => {});
     } catch (error) {
       await queryRunner.rollbackTransaction();
 

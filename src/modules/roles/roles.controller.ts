@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseUUIDPipe, Req } from '@nestjs/common';
+import { Request } from 'express';
 import { RolesService } from './roles.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
@@ -8,8 +9,9 @@ export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 
   @Post()
-  create(@Body() createRoleDto: CreateRoleDto) {
-    return this.rolesService.create(createRoleDto);
+  create(@Body() createRoleDto: CreateRoleDto, @Req() request: Request) {
+    const userId = (request as any).user?.id;
+    return this.rolesService.create(createRoleDto, request, userId);
   }
 
   @Get()
@@ -23,12 +25,14 @@ export class RolesController {
   }
 
   @Patch(':id')
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() updateRoleDto: UpdateRoleDto) {
-    return this.rolesService.update(id, updateRoleDto);
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() updateRoleDto: UpdateRoleDto, @Req() request: Request) {
+    const userId = (request as any).user?.id;
+    return this.rolesService.update(id, updateRoleDto, request, userId);
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseUUIDPipe) id: string) {
-    return this.rolesService.remove(id);
+  remove(@Param('id', ParseUUIDPipe) id: string, @Req() request: Request) {
+    const userId = (request as any).user?.id;
+    return this.rolesService.remove(id, request, userId);
   }
 }
