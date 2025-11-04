@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { useContainer } from 'class-validator';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { setupSwagger } from './config/swagger';
 
 async function bootstrap() {
   const PORT   = 3000;
@@ -20,6 +21,8 @@ async function bootstrap() {
       },
     }),
   );
+
+  setupSwagger(app); 
 
   await app.listen(PORT, () => {
     logger.log(`[INFO] Server is running on localhost:${PORT}`);
