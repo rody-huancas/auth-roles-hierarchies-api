@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AuditLog } from '../../modules/audit-logs/entities/audit-log.entity';
 
@@ -6,132 +6,182 @@ export interface AuditLogData {
   action     : string;
   entityType : string;
   entityId   : string;
+  userId    ?: string;
   oldValues ?: Record<string, any>;
   newValues ?: Record<string, any>;
   ipAddress ?: string;
   userAgent ?: string;
 }
 
+export interface RequestInfo {
+  ipAddress: string;
+  userAgent: string;
+}
+
 @Injectable()
 export class AuditService {
+  private readonly logger = new Logger(AuditService.name);
+
   constructor(private readonly dataSource: DataSource) {}
 
-    /**
-   * Registra una acción en el log de auditoría de forma asíncrona
-   * (no bloquea la operación principal)
+  /**
+   * Logs an action to the audit trail asynchronously
+   * (does not block the main operation)
    */
   async logAction(data: AuditLogData): Promise<void> {
     try {
       const auditLog = this.dataSource.manager.create(AuditLog, {
-        action    : data.action,
+        action: data.action,
         entityType: data.entityType,
-        entityId  : data.entityId,
-        oldValues : data.oldValues || {},
-        newValues : data.newValues || {},
-        ipAddress : data.ipAddress || 'system',
-        userAgent : data.userAgent || 'system',
+        entityId: data.entityId,
+        userId: data.userId,
+        oldValues: data.oldValues || {},
+        newValues: data.newValues || {},
+        ipAddress: data.ipAddress || 'system',
+        userAgent: data.userAgent || 'system',
       });
 
-        // Se guarda de forma asíncrona sin esperar (fire and forget)
-        // para no bloquear la operación principal
-      this.dataSource.manager.save(AuditLog, auditLog).catch((error) => {
-          // Log del error pero no lanzamos excepción para no afectar la operación principal
-        console.error('Error al registrar audit log:', error);
-      });
+      // Fire and forget to avoid blocking main operation
+      this.dataSource.manager
+        .save(AuditLog, auditLog)
+        .catch((error) => {
+          this.logger.error('Failed to save audit log', error);
+        });
     } catch (error) {
-        // Si hay error, solo lo registramos pero no afectamos la operación principal
-      console.error('Error al crear audit log:', error);
+      this.logger.error('Failed to create audit log', error);
     }
   }
 
-    /**
-   * Helper para obtener IP y User-Agent del request
+  /**
+   * Extracts IP address and User-Agent from request
    */
-  static getRequestInfo(request: any): { ipAddress: string; userAgent: string } {
-    const ipAddress = 
-      request?.ip ||
-      request?.connection?.remoteAddress ||
-      request?.headers?.['x-forwarded-for']?.split(',')[0]?.trim() ||
-      request?.headers?.['x-real-ip'] ||
-      'unknown';
+  static getRequestInfo(request?: any): RequestInfo {
+    if (!request) {
+      return { ipAddress: 'system', userAgent: 'system' };
+    }
 
-    const userAgent = request?.headers?.['user-agent'] || 'unknown';
+    const ipAddress = this.extractIpAddress(request);
+    const userAgent = request.headers?.['user-agent'] || 'unknown';
 
-    return { ipAddress: ipAddress.toString(), userAgent };
+    return { ipAddress, userAgent };
   }
 
-    /**
-   * Registra una acción CREATE
+  private static extractIpAddress(request: any): string {
+    const sources = [
+      request.ip,
+      request.connection?.remoteAddress,
+      request.headers?.['x-forwarded-for']?.split(',')[0]?.trim(),
+      request.headers?.['x-real-ip'],
+      request.socket?.remoteAddress,
+    ];
+
+    return sources.find(ip => ip && ip !== '::1') || 'unknown';
+  }
+
+  /**
+   * Logs a CREATE action
    */
   async logCreate(
-  entityType : string,
-  entityId   : string,
-  newValues  : Record<string, any>,
-  request   ?: any,
-  userId    ?: string,
-  )          : Promise<void> {
-    const { ipAddress, userAgent } = request ? AuditService.getRequestInfo(request) : { ipAddress: 'system', userAgent: 'system' };
-
-    const valuesWithUser = userId ? { ...newValues, _createdBy: userId } : newValues;
+    entityType: string,
+    entityId: string,
+    newValues: Record<string, any>,
+    request?: any,
+    userId?: string,
+  ): Promise<void> {
+    const { ipAddress, userAgent } = AuditService.getRequestInfo(request);
 
     await this.logAction({
       action: 'CREATE',
       entityType,
       entityId,
-      newValues: valuesWithUser,
+      userId,
+      newValues,
       ipAddress,
       userAgent,
     });
   }
 
-    /**
-   * Registra una acción UPDATE
+  /**
+   * Logs an UPDATE action
    */
   async logUpdate(
-  entityType : string,
-  entityId   : string,
-  oldValues  : Record<string, any>,
-  newValues  : Record<string, any>,
-  request   ?: any,
-  userId    ?: string,
-  ) : Promise<void> {
-    const { ipAddress, userAgent } = request ? AuditService.getRequestInfo(request) : { ipAddress: 'system', userAgent: 'system' };
-
-    const newValuesWithUser = userId ? { ...newValues, _updatedBy: userId } : newValues;
+    entityType: string,
+    entityId: string,
+    oldValues: Record<string, any>,
+    newValues: Record<string, any>,
+    request?: any,
+    userId?: string,
+  ): Promise<void> {
+    const { ipAddress, userAgent } = AuditService.getRequestInfo(request);
 
     await this.logAction({
       action: 'UPDATE',
       entityType,
       entityId,
+      userId,
       oldValues,
-      newValues: newValuesWithUser,
+      newValues,
       ipAddress,
       userAgent,
     });
   }
 
-    /**
-   * Registra una acción DELETE
+  /**
+   * Logs a DELETE action
    */
   async logDelete(
-  entityType : string,
-  entityId   : string,
-  oldValues  : Record<string, any>,
-  request   ?: any,
-  userId    ?: string,
-  ) : Promise<void> {
-    const { ipAddress, userAgent } = request ? AuditService.getRequestInfo(request) : { ipAddress: 'system', userAgent: 'system' };
-
-    const oldValuesWithUser = userId ? { ...oldValues, _deletedBy: userId } : oldValues;
+    entityType: string,
+    entityId: string,
+    oldValues: Record<string, any>,
+    request?: any,
+    userId?: string,
+  ): Promise<void> {
+    const { ipAddress, userAgent } = AuditService.getRequestInfo(request);
 
     await this.logAction({
       action: 'DELETE',
       entityType,
       entityId,
-      oldValues: oldValuesWithUser,
+      userId,
+      oldValues,
+      ipAddress,
+      userAgent,
+    });
+  }
+
+  /**
+   * Logs a LOGIN action
+   */
+  async logLogin(
+    userId: string,
+    request?: any,
+    success: boolean = true,
+  ): Promise<void> {
+    const { ipAddress, userAgent } = AuditService.getRequestInfo(request);
+
+    await this.logAction({
+      action: success ? 'LOGIN_SUCCESS' : 'LOGIN_FAILED',
+      entityType: 'User',
+      entityId: userId,
+      userId,
+      ipAddress,
+      userAgent,
+    });
+  }
+
+  /**
+   * Logs a LOGOUT action
+   */
+  async logLogout(userId: string, request?: any): Promise<void> {
+    const { ipAddress, userAgent } = AuditService.getRequestInfo(request);
+
+    await this.logAction({
+      action: 'LOGOUT',
+      entityType: 'User',
+      entityId: userId,
+      userId,
       ipAddress,
       userAgent,
     });
   }
 }
-
