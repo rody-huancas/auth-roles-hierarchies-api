@@ -10,7 +10,6 @@ export class UsersController {
 
   @Post()
   create(@Body() createUserDto: CreateUserDto, @Req() request: Request) {
-    // TODO: Obtener userId del token JWT cuando implementes autenticación
     const userId = (request as any).user?.id;
     return this.usersService.create(createUserDto, request, userId);
   }
