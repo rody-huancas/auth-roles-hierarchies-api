@@ -56,6 +56,4 @@ export function setupSwagger(app: INestApplication) {
       .swagger-ui .info .title { color: #1976d2; }
     `,
   });
-
-  console.log(`Swagger documentation available at: /${swaggerPath}`);
 }
